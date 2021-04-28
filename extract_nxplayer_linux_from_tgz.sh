@@ -4,6 +4,9 @@
 # from respective NOMACHINE installers packaged as .tar.gz
 #-----------------------------------------------------------------------
 
+# DEBUG=1
+  if [ "$DEBUG" == "0" ]; then DEBUG=''; fi
+
   CWD=$PWD
 
   TAR=$(which tar 2>/dev/null)
@@ -33,23 +36,54 @@
      echo "$BT-version ${VER}"
 
      echo "Extracting nxclient.tar.gz and nxplayer.tar.gz from $TGZ"
-     $TAR zxf $TGZ NX/etc/NX/player/packages/nxclient.tar.gz NX/etc/NX/player/packages/nxplayer.tar.gz --strip-components 5
+     OUT=$($TAR zxf $TGZ NX/etc/NX/player/packages/nxclient.tar.gz NX/etc/NX/player/packages/nxplayer.tar.gz --strip-components 5)
+     if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "Extracting failed. Exiting."
+        exit 1
+     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+
      echo "Unpacking $BT nxclient.tar.gz"
-     $TAR zxf nxclient.tar.gz
+     OUT=$($TAR zxf nxclient.tar.gz)
+     if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "Unpacking failed. Exiting."
+        exit 1
+     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+
      echo "Unpacking $BT nxplayer.tar.gz"
-     $TAR zxf nxplayer.tar.gz 
+     OUT=$($TAR zxf nxplayer.tar.gz)
+     if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "Unpacking failed. Exiting."
+        exit 1
+     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+
      /bin/rm -f nxclient.tar.gz nxplayer.tar.gz
      /bin/mv NX nxplayer4linux
 
+     echo '#!/bin/bash'              > startnxplayer.sh
+     echo ' cd nxplayer4linux/bin'  >> startnxplayer.sh
+     echo ' ./nxplayer &'           >> startnxplayer.sh
+     chmod a+rx  startnxplayer.sh 
+
      ARCHIVE=nxplayer4linux_${VER}_${BT}.tgz
-     echo "Creating ${CWD}/${ARCHIVE}"
-     $TAR zcf ${CWD}/${ARCHIVE} nxplayer4linux --remove-files
+     echo "Creating ${CWD}/${ARCHIVE} with ${TAR}"
+     OUT=$($TAR zcf ${CWD}/${ARCHIVE} nxplayer4linux startnxplayer.sh --remove-files)
+     if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "Creating ${CWD}/${ARCHIVE} failed. Exiting."
+        exit 1
+     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
 
      echo -e "\nFile ${CWD}/${ARCHIVE} is created"
      echo 'Usage:'
      echo "   tar zxf ${ARCHIVE}"
-     echo '   cd nxplayer4linux/bin/'
-     echo '   ./nxplayer'
+     echo '   ./startnxplayer.sh'
 
   done
   exit

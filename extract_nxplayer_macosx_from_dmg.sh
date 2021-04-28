@@ -11,6 +11,9 @@
 # MacOSX security error.
 #-----------------------------------------------------------------------
 
+# DEBUG=1
+  if [ "$DEBUG" == "0" ]; then DEBUG=''; fi
+
   CWD=$PWD
 
   echo -e "\nProducing no-install version of NOMACHINE player for MacOSX"
@@ -30,6 +33,12 @@
   VER=${VER/_*/}
   echo "NOMACHINE MacOSX installer version: ${VER}"
 
+  TAR=$(which tar 2>/dev/null)
+  if [ -z "$TAR" ]; then
+     echo -e "\n *** No tar app in the system."
+     exit 1
+  fi
+
   EXTRACT=$(which 7z)
   if [ -z "$EXTRACT" ]; then
      echo -e "\n *** No 7z app in the system."
@@ -44,138 +53,155 @@
 
   echo "Extracting MacOSX nxplayer and nxclient in several steps"
   echo "Extracting NoMachine/NoMachine.pkg from ${DMG}"
-  $EXTRACT x -bd -y $DMG  >/dev/null
+  echo "(this step is OK to fail)"
+  OUT=$($EXTRACT x -bd -y $DMG)
   if [ $? -ne 0 ]; then
+#    if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi        #this is common, no need to report
      IMG=${DMG/%.dmg}
      if [ -e "$IMG" ]; then /bin/rm -f $IMG; fi
      echo -e "\nDirect extracting $DMG with $EXTRACT failed. Trying conversion of DMG to IMG"
+     if [ -n "$DEBUG" ]; then read -rsp $'Press any key to continue...\n' -n1 key; fi
      ### Newer DMG versions cannot be directly extracted with 7z.
      ### First, we need to convert them from DMG to IMG and then
      ### try again:
      IMG=${DMG/%dmg/img}
      echo "Converting ${DMG} to ${IMG}"
-     $DMG2IMG $DMG  >/dev/null
+     OUT=$($DMG2IMG $DMG)
      if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
         echo "Conversion of DMG to IMG failed. Exiting."
         exit 1;
      elif [ ! -e "$IMG" ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
         echo "No ${IMG} created. Exiting."
         exit 1;
      fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
      echo "Extracting content from ${IMG} with ${EXTRACT}"
 # Depending on the version of 7z, it may extract either NoMachine/NoMachine.pkg or 4.hfs
-     $EXTRACT x -bd -y $IMG  >/dev/null
+     OUT=$($EXTRACT x -bd -y $IMG)
      if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
         echo "Extracting contect of $IMG with $EXTRACT failed too. Exiting."
         if [ -e "$IMG" ]; then /bin/rm -f $IMG; fi
         exit 1
-     else 
+     fi 
 # $IMG was a temp file, we do not need it anymore.
-        /bin/rm -f $IMG
-     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+     /bin/rm -f $IMG
   fi
   ### Newer 7z extracts NoMachine/NoMachine.pkg while older 7z first extracts 4.hfs
   if [ -e 4.hfs ]; then 
      echo "Extracting content of 4.hfs which should include NoMachine/NoMachine.pkg"
-     $EXTRACT x -bd -y 4.hfs  >/dev/null
+     OUT=$($EXTRACT x -bd -y 4.hfs)
      if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
         echo "Extracting content of 4.hfs with $EXTRACT failed. Exiting."
         /bin/rm -f 4.hfs
         exit 1
-     else
-# 4.hfs was a temp file, we do not need it anymore.
-        /bin/rm -f 4.hfs
-        for i in {0..7}; do
-#          echo "Removing $i.*"
-           /bin/rm -rf $i.*
-        done
      fi
+# 4.hfs was a temp file, we do not need it anymore.
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+     /bin/rm -f 4.hfs
+     for i in {0..7}; do /bin/rm -rf $i.*; done
   fi
 
-  if [ -e NoMachine/NoMachine.pkg ]; then 
-     /bin/mv NoMachine/NoMachine.pkg .
-     /bin/rm -rf NoMachine/ 
-  else
+  if [ ! -e NoMachine/NoMachine.pkg ]; then 
      echo "File NoMachine/NoMachine.pkg not found after extraction. Exiting."
      exit 1
   fi
-  echo "Extracting nxclient.pkg and nxplayer.pkg dirs from NoMachine.pkg"
-  $EXTRACT x -bd -y NoMachine.pkg  >/dev/null
+  echo "Extracting nxclient.pkg and nxplayer.pkg dirs from NoMachine/NoMachine.pkg"
+  OUT=$($EXTRACT x -bd -y NoMachine/NoMachine.pkg)
   if [ $? -ne 0 ]; then
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
      echo "Extracting NoMachine.pkg with $EXTRACT failed. Exiting."
-    /bin/rm -rf NoMachine.pkg Distribution Resources/ NoMachine.pkg \[TOC\].xml 
+    /bin/rm -rf Distribution Resources/ NoMachine/ \[TOC\].xml 
      exit 1
   fi
-  /bin/rm -rf Distribution Resources/ NoMachine.pkg \[TOC\].xml 
+  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+  /bin/rm -rf Distribution Resources/ NoMachine/ \[TOC\].xml 
 
 #---
   echo -e "\nExtracting nxclient files from nxclient.pkg/Payload"
-  if [ -e nxclient.pkg/Payload ]; then
-     echo "Moving nxclient.pkg/Payload to ./Payload"
-     /bin/mv nxclient.pkg/Payload .
-  else
+  if [ ! -e nxclient.pkg/Payload ]; then
      echo "File nxclient.pkg/Payload not found after extraction. Exiting."
      exit 1
   fi
-  echo "Extracting content of ./Payload with $EXTRACT"
-  $EXTRACT x -bd -y Payload  >/dev/null
+  echo "Extracting content of nxclient.pkg/Payload with $EXTRACT"
+  OUT=$($EXTRACT x -bd -y nxclient.pkg/Payload)
   if [ $? -ne 0 ]; then
-     echo "Extracting content of ./Payload with $EXTRACT failed. Exiting."
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+     echo "Extracting content of nxclient.pkg/Payload with $EXTRACT failed. Exiting."
      exit 1
   elif [ ! -e Payload~ ]; then 
-     echo "./Payload~ not found after extracting ./Payload with $EXTRACT. Exiting."
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+     echo "./Payload~ not found after extracting nxclient.pkg/Payload with $EXTRACT. Exiting."
      exit 1
   fi
+  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
   echo "Extracting content of ./Payload~ with $EXTRACT"
-  $EXTRACT x -bd -y Payload~  >/dev/null
+  OUT=$($EXTRACT x -bd -y Payload~)
   if [ $? -ne 0 ]; then
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
      echo "Extracting ./Payload~ with $EXTRACT failed. Exiting."
      exit 1
   fi
-  /bin/rm -rf Payload* nxclient.pkg
+  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+  /bin/rm -rf Payload~ nxclient.pkg
 
 #---
   echo -e "\nExtracting nxplayer files from nxplayer.pkg/Payload"
-  if [ -e nxplayer.pkg/Payload ]; then
-     echo "Moving nxplayer.pkg/Payload to ./Payload"
-     /bin/mv nxplayer.pkg/Payload .
-  else
+  if [ ! -e nxplayer.pkg/Payload ]; then
      echo "File nxplayer.pkg/Payload not found after extraction. Exiting."
      exit 1
   fi
-  echo "Extracting content of ./Payload with $EXTRACT"
-  $EXTRACT x -bd -y Payload  >/dev/null
+  echo "Extracting content of nxplayer.pkg/Payload with $EXTRACT"
+  OUT=$($EXTRACT x -bd -y nxplayer.pkg/Payload)
   if [ $? -ne 0 ]; then
-     echo "Extracting content of ./Payload with $EXTRACT failed. Exiting."
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+     echo "Extracting content of nxplayer.pkg/Payload with $EXTRACT failed. Exiting."
      exit 1
   elif [ ! -e Payload~ ]; then 
-     echo "./Payload~ not found after extracting ./Payload with $EXTRACT. Exiting."
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+     echo "./Payload~ not found after extracting nxplayer.pkg/Payload with $EXTRACT. Exiting."
      exit 1
   fi
+  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
   echo "Extracting content of ./Payload~ with $EXTRACT"
-  $EXTRACT x -bd -y Payload~  >/dev/null 
+  OUT=$($EXTRACT x -bd -y Payload~) 
   if [ $? -ne 0 ]; then
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
      echo "Extracting content of ./Payload~ with $EXTRACT failed. Exiting."
      exit 1
   fi
-  /bin/rm -rf Payload* nxplayer.pkg
+  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+  /bin/rm -rf Payload~ nxplayer.pkg
 
 #---
-  ARCHIVE=nxplayer4macosx_${VER}.tgz
-  echo -e "\nCreating ${CWD}/${ARCHIVE}"
   # NOTE: it is important to preserve the "Contents" level
   # because otherwise nxplayer does not start on MacOSX.
   /bin/mv Applications/NoMachine.app ./nxplayer4macosx
   /bin/rm -rf Applications
-  cd nxplayer4macosx/Contents
-  /bin/chmod -R a+x MacOS/ Frameworks/bin/
-  cd ../../
-  /bin/tar zcf ${CWD}/${ARCHIVE} nxplayer4macosx --remove-files
+  /bin/chmod -R a+rx nxplayer4macosx/Contents/MacOS/ nxplayer4macosx/Contents/Frameworks/bin/
+
+  echo '#!/bin/bash'                                      > startnxplayer.sh
+  echo ' xattr -rd com.apple.quarantine nxplayer4macosx' >> startnxplayer.sh
+  echo ' cd nxplayer4macosx/Contents/MacOS'              >> startnxplayer.sh
+  echo ' ./nxplayer &'                                   >> startnxplayer.sh
+  chmod a+rx  startnxplayer.sh 
+
+  ARCHIVE=nxplayer4macosx_${VER}.tgz
+  echo -e "\nCreating ${CWD}/${ARCHIVE} with ${TAR}"
+  OUT=$($TAR zcf ${CWD}/${ARCHIVE} nxplayer4macosx startnxplayer.sh --remove-files)
+  if [ $? -ne 0 ]; then
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+     echo "'$TAR zcf ${CWD}/${ARCHIVE} nxplayer4macosx --remove-files' failed. Exiting."
+     exit 1
+  fi
+  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
 
   echo -e "\nFile ${CWD}/${ARCHIVE} is created"
   echo 'Usage:'
   echo "   tar zxf ${ARCHIVE}"
-  echo '   cd nxplayer4macosx/Contents/MacOS'
-  echo '   ./nxplayer'
-
+  echo '   ./startnxplayer.sh'
   exit
