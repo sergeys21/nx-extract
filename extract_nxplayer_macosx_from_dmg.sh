@@ -12,6 +12,36 @@
 #-----------------------------------------------------------------------
 
 # DEBUG=1
+
+  if [ -z "${HOSTNAME}" ]; then HOSTNAME=$(/bin/hostname -s); fi
+  HOST=${HOSTNAME%%.*}
+
+  if [[ $HOST =~ ^www ]] && [[ $USER == gmca ]]; then
+     DEST="/home/gmca/WWW/remote/players"
+  elif [[ $HOST =~ ^sergey ]] && [[ $USER == sergey ]]; then
+     DEST="/mnt/www/gmca/WWW/remote/players"
+  else
+     echo "This script must be executed as sergey@sergey or gmca@www. Will try to unpack only."
+  fi
+
+  if [ ! -z "$DEST" ]; then
+     if [ -e "$DEST" ]; then
+        echo "Destination=$DEST"
+     else
+        echo "Destination=$DEST does not exist. Will try to unpack only."
+        DEST=
+        unset DEST
+     fi
+  fi
+
+  if [ ! -w ./ ]; then 
+     echo "Current directory is read-only. Please copy the files elsewhere."
+     if [[ $HOST =~ ^www ]]; then
+        echo "For example, consider www:/home/_KITS/NOMACHINE-TEAMVIEWER/"
+     fi
+     exit 1
+  fi
+  
   if [ "$DEBUG" == "0" ]; then DEBUG=''; fi
 
   CWD=$PWD
@@ -51,7 +81,9 @@
      exit 1
   fi
 
-  echo "Extracting MacOSX nxplayer and nxclient in several steps"
+# COMPS=(nxclient nxplayer)				#versions before 8
+  COMPS=(nxrunner nxplayer)
+  echo "Extracting MacOSX NX components ( ${COMPS[*]} ) in several steps"
   echo "Extracting NoMachine/NoMachine.pkg from ${DMG}"
   echo "(this step is OK to fail)"
   OUT=$($EXTRACT x -bd -y $DMG)
@@ -82,7 +114,7 @@
      OUT=$($EXTRACT x -bd -y $IMG)
      if [ $? -ne 0 ]; then
         if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-        echo "Extracting contect of $IMG with $EXTRACT failed too. Exiting."
+        echo "Extracting content of $IMG with $EXTRACT failed too. Exiting."
         if [ -e "$IMG" ]; then /bin/rm -f $IMG; fi
         exit 1
      fi 
@@ -110,7 +142,8 @@
      echo "File NoMachine/NoMachine.pkg not found after extraction. Exiting."
      exit 1
   fi
-  echo "Extracting nxclient.pkg and nxplayer.pkg dirs from NoMachine/NoMachine.pkg"
+  MSG=; for COMP in ${COMPS[@]}; do MSG+=" ${COMP}.pkg"; done
+  echo "Extracting (${MSG} ) dirs from NoMachine/NoMachine.pkg"
   OUT=$($EXTRACT x -bd -y NoMachine/NoMachine.pkg)
   if [ $? -ne 0 ]; then
      if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
@@ -122,60 +155,39 @@
   /bin/rm -rf Distribution Resources/ NoMachine/ \[TOC\].xml 
 
 #---
-  echo -e "\nExtracting nxclient files from nxclient.pkg/Payload"
-  if [ ! -e nxclient.pkg/Payload ]; then
-     echo "File nxclient.pkg/Payload not found after extraction. Exiting."
-     exit 1
-  fi
-  echo "Extracting content of nxclient.pkg/Payload with $EXTRACT"
-  OUT=$($EXTRACT x -bd -y nxclient.pkg/Payload)
-  if [ $? -ne 0 ]; then
-     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-     echo "Extracting content of nxclient.pkg/Payload with $EXTRACT failed. Exiting."
-     exit 1
-  elif [ ! -e Payload~ ]; then 
-     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-     echo "./Payload~ not found after extracting nxclient.pkg/Payload with $EXTRACT. Exiting."
-     exit 1
-  fi
-  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
-  echo "Extracting content of ./Payload~ with $EXTRACT"
-  OUT=$($EXTRACT x -bd -y Payload~)
-  if [ $? -ne 0 ]; then
-     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-     echo "Extracting ./Payload~ with $EXTRACT failed. Exiting."
-     exit 1
-  fi
-  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
-  /bin/rm -rf Payload~ nxclient.pkg
-
-#---
-  echo -e "\nExtracting nxplayer files from nxplayer.pkg/Payload"
-  if [ ! -e nxplayer.pkg/Payload ]; then
-     echo "File nxplayer.pkg/Payload not found after extraction. Exiting."
-     exit 1
-  fi
-  echo "Extracting content of nxplayer.pkg/Payload with $EXTRACT"
-  OUT=$($EXTRACT x -bd -y nxplayer.pkg/Payload)
-  if [ $? -ne 0 ]; then
-     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-     echo "Extracting content of nxplayer.pkg/Payload with $EXTRACT failed. Exiting."
-     exit 1
-  elif [ ! -e Payload~ ]; then 
-     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-     echo "./Payload~ not found after extracting nxplayer.pkg/Payload with $EXTRACT. Exiting."
-     exit 1
-  fi
-  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
-  echo "Extracting content of ./Payload~ with $EXTRACT"
-  OUT=$($EXTRACT x -bd -y Payload~) 
-  if [ $? -ne 0 ]; then
-     if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
-     echo "Extracting content of ./Payload~ with $EXTRACT failed. Exiting."
-     exit 1
-  fi
-  if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
-  /bin/rm -rf Payload~ nxplayer.pkg
+  for COMP in ${COMPS[@]}; do
+     PKGDIR=$(find . -type d -name "${COMP}*.pkg")
+     if [ -z "${PKGDIR}" ]; then
+        echo "Cannot find directory ${COMP}*.pkg. Exiting."
+        exit 1
+     fi
+     echo -e "\nExtracting ${COMP} files from ${PKGDIR}/Payload"
+     if [ ! -e ${PKGDIR}/Payload ]; then
+        echo "File ${PKGDIR}/Payload not found after extraction. Exiting."
+        exit 1
+     fi
+     echo "Extracting content of ${PKGDIR}/Payload with $EXTRACT"
+     OUT=$($EXTRACT x -bd -y ${PKGDIR}/Payload)
+     if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "Extracting content of ${PKGDIR}/Payload with $EXTRACT failed. Exiting."
+        exit 1
+     elif [ ! -e Payload~ ]; then 
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "./Payload~ not found after extracting ${COMP}.pkg/Payload with $EXTRACT. Exiting."
+        exit 1
+     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+     echo "Extracting content of ./Payload~ with $EXTRACT"
+     OUT=$($EXTRACT x -bd -y Payload~)
+     if [ $? -ne 0 ]; then
+        if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
+        echo "Extracting ./Payload~ with $EXTRACT failed. Exiting."
+        exit 1
+     fi
+     if [ -n "$DEBUG" ]; then echo -e "$OUT"; read -rsp $'Press any key to continue...\n' -n1 key; fi
+     /bin/rm -rf Payload~ ${PKGDIR}
+  done
 
 #---
   # NOTE: it is important to preserve the "Contents" level
@@ -184,11 +196,11 @@
   /bin/rm -rf Applications
   /bin/chmod -R a+rx nxplayer4macosx/Contents/MacOS/ nxplayer4macosx/Contents/Frameworks/bin/
 
-  echo '#!/bin/bash'                                      > startnxplayer.sh
-  echo ' xattr -rd com.apple.quarantine nxplayer4macosx' >> startnxplayer.sh
-  echo ' cd nxplayer4macosx/Contents/MacOS'              >> startnxplayer.sh
-  echo ' ./nxplayer &'                                   >> startnxplayer.sh
-  chmod a+rx  startnxplayer.sh 
+  echo '#!/bin/bash'                                         > startnxplayer.sh
+  echo ' xattr -rd com.apple.quarantine nxplayer4macosx'    >> startnxplayer.sh
+  echo ' cd $(dirname "$0")/nxplayer4macosx/Contents/MacOS' >> startnxplayer.sh
+  echo ' ./nxplayer &'                                      >> startnxplayer.sh
+  chmod a+rx startnxplayer.sh 
 
   ARCHIVE=nxplayer4macosx_${VER}.tgz
   echo -e "\nCreating ${CWD}/${ARCHIVE} with ${TAR}"
@@ -204,4 +216,13 @@
   echo 'Usage:'
   echo "   tar zxf ${ARCHIVE}"
   echo '   ./startnxplayer.sh'
+
+  if [ ! -z "$DEST" ] && [ -e $DEST ]; then 
+     echo "Moving ${CWD}/${ARCHIVE} to ${DEST}/"
+     /bin/mv -f ${CWD}/${ARCHIVE} ${DEST}/
+     /bin/chmod a-w ${DEST}/${ARCHIVE}
+     /bin/chown ${USER}:users ${DEST}/${ARCHIVE}
+  else
+     echo -e "\nNot moving ${CWD}/${ARCHIVE} to ${DEST} because destination does not exist or wrong host"
+  fi
   exit
