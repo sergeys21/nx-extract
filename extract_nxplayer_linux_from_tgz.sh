@@ -5,36 +5,6 @@
 #-----------------------------------------------------------------------
 
 # DEBUG=1
-
-  if [ -z "${HOSTNAME}" ]; then HOSTNAME=$(/bin/hostname -s); fi
-  HOST=${HOSTNAME%%.*}
-
-  if [[ $HOST =~ ^www ]] && [[ $USER == gmca ]]; then
-     DEST="/home/gmca/WWW/remote/players"
-  elif [[ $HOST =~ ^sergey ]] && [[ $USER == sergey ]]; then
-     DEST="/mnt/www/gmca/WWW/remote/players"
-  else
-     echo "This script must be executed as sergey@sergey or gmca@www. Will try to unpack only."
-  fi
-
-  if [ ! -z "$DEST" ]; then
-     if [ -e "$DEST" ]; then
-        echo "Destination=$DEST"
-     else
-        echo "Destination=$DEST does not exist. Will try to unpack only."
-        DEST=
-        unset DEST
-     fi
-  fi
-
-  if [ ! -w ./ ]; then 
-     echo "Current directory is read-only. Please copy the files elsewhere."
-     if [[ $HOST =~ ^www ]]; then
-        echo "For example, consider www:/home/_KITS/NOMACHINE-TEAMVIEWER/"
-     fi
-     exit 1
-  fi
-  
   if [ "$DEBUG" == "0" ]; then DEBUG=''; fi
 
   CWD=$PWD
@@ -109,14 +79,5 @@
      echo 'Usage:'
      echo "   tar zxf ${ARCHIVE}"
      echo '   ./startnxplayer.sh'
-
-     if [ ! -z "$DEST" ] && [ -e $DEST ]; then 
-        echo "Moving ${CWD}/${ARCHIVE} to ${DEST}/"
-        /bin/mv -f ${CWD}/${ARCHIVE} ${DEST}/
-        /bin/chmod a-w ${DEST}/${ARCHIVE}
-        /bin/chown ${USER}:users ${DEST}/${ARCHIVE}
-     else 
-        echo -e "\nNot moving ${CWD}/${ARCHIVE} to ${DEST} because destination does not exist or wrong host"
-     fi
   done
   exit
