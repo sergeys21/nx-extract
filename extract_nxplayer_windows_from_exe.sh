@@ -1,6 +1,6 @@
 #!/bin/bash
 #-----------------------------------------------------------------------
-# This script produces a no-install version of NX player for Windows 
+# This script produces a no-install version of NX player for Windows
 # from respective NOMACHINE installer.
 # It needs innoextract from https://constexpr.org/innoextract/
 # Respective rpm and deb distributions are available.
@@ -11,19 +11,25 @@
 
   CWD=$PWD
 
+  if [ ! -w "$CWD" ]; then
+     echo "Current directory is read-only. Please copy the files elsewhere."
+     exit 1
+  fi
+
   echo -e "\nProducing no-install version of NOMACHINE player for Windows"
 
-  ### Example: nomachine-enterprise-client_6.0.78_1.exe
-  NXEXE=($(/bin/ls -tr -1 nomachine-enterprise-client_*.exe))
+  ### Example: nomachine-player_10.2.3_1_x64.exe
+  PREFIX=nomachine-player_
+  NXEXE=($(/bin/ls -tr -1 ${PREFIX}*.exe))
   if [[ ${#NXEXE[@]} -eq 0 ]]; then
-     echo -e "\n *** No nomachine-enterprise-client installers for Windows found in $CWD"
+     echo -e "\n *** No nomachine-player installers for Windows found in $CWD"
      exit 1
   fi
 
 ### Choose the latest distribution:
   EXE=${NXEXE[-1]}
   echo "Found ${EXE}"
-  VER=${EXE#nomachine-enterprise-client_}
+  VER=${EXE#${PREFIX}}
   VER=${VER%.exe}
   VER=${VER/_*/}
   echo "NOMACHINE Windows installer version: ${VER}"
@@ -44,6 +50,7 @@
   COMPS=(nxrunner nxplayer)
 
   echo "Extracting Windows NX components ( ${COMPS[*]} ) using ${EXTRACT}"
+  echo "--> $EXTRACT --include app --silent --progress=0 $EXE"
   OUT=$($EXTRACT --include app --silent --progress=0 $EXE)
   if [ $? -ne 0 ]; then
      if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
@@ -58,12 +65,16 @@
 
   /bin/mv app nxplayer4windows
 
-  echo '   cd nxplayer4windows\bin'$'\r'  > startnxplayer.bat
-  echo '   nxplayer'$'\r'                >> startnxplayer.bat
-  chmod a+rx  startnxplayer.bat 
+  echo '@echo off'$'\r'                                    > startnxplayer.bat
+  echo 'cls'$'\r'                                         >> startnxplayer.bat
+  echo '@set DesktopPath=%~dp0'$'\r'                      >> startnxplayer.bat
+  echo '%DesktopPath%\nxplayer4windows\bin\nxplayer'$'\r' >> startnxplayer.bat
+  echo '@rem pause'$'\r'                                  >> startnxplayer.bat
+  chmod a+rx  startnxplayer.bat
 
   ARCHIVE=nxplayer4windows_${VER}.zip
   echo "Creating ${CWD}/${ARCHIVE} with ${ZIP}"
+  echo "--> $ZIP -mrq ${CWD}/${ARCHIVE} nxplayer4windows startnxplayer.bat"
   OUT=$($ZIP -mrq ${CWD}/${ARCHIVE} nxplayer4windows startnxplayer.bat)
   if [ $? -ne 0 ]; then
      if [ -n "$DEBUG" ]; then echo -e "$OUT"; fi
@@ -76,4 +87,7 @@
   echo 'Usage:'
   echo "   unzip -x ${ARCHIVE}"
   echo '   startnxplayer.bat'
-  exit
+
+  SCRDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -e ${SCRDIR}/move2dest.sh ]; then ${SCRDIR}/move2dest.sh ${ARCHIVE}; fi
+  exit 0
